@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Resume Builder Pro</title>
+  <style>
+    body { margin:0; font-family: "Poppins", sans-serif; background:#0b0f1a; color:#fff; }
+    #container { display:flex; height:100vh; overflow:hidden; }
+    #editor, #preview { flex:1; min-width:280px; padding:15px; overflow-y:auto; }
+    #editor { background:#111624; }
+    #preview { background:#fff; color:#000; display:flex; justify-content:center; align-items:flex-start; }
+    #resumePaper { width:794px; min-height:1123px; background:#fff; padding:40px; box-shadow:0 0 12px rgba(0,0,0,0.3); }
+    h2 { margin-top:0; }
+
+    .resume-card { background:#252c42; padding:12px; border-radius:10px; margin:8px 0; position:relative; }
+    .resume-card h3 { margin:0 0 5px 0; font-size:15px; text-transform:uppercase; color:#00ffcc; }
+    .resume-card p { margin:0; font-size:14px; }
+    .remove-card { position:absolute; top:6px; right:10px; cursor:pointer; color:#ff5555; font-weight:bold; }
+
+    #coverLetter { width:100%; min-height:120px; padding:10px; border-radius:8px; border:none; margin-top:10px; background:#252c42; color:#fff; }
+
+    /* Floating Add Button */
+    #addSectionBtn { position:fixed; bottom:70px; left:20px; background:#ff0051; border:none; padding:15px 20px; border-radius:50%; color:#fff; font-size:20px; cursor:pointer; }
+
+    /* Sticky Bottom Bar */
+    #bottomBar { position:fixed; bottom:0; left:0; width:100%; background:#111; padding:10px; display:flex; justify-content:space-between; align-items:center; }
+    .ats-bar { flex:1; margin:0 10px; height:14px; background:#333; border-radius:8px; overflow:hidden; }
+    .ats-fill { height:100%; background:linear-gradient(90deg,#00ff88,#0088ff); width:50%; transition:width 0.3s; }
+    .bar-actions button { margin:0 5px; padding:6px 12px; border:none; border-radius:6px; background:#222; color:#fff; cursor:pointer; }
+
+    /* Template Modal */
+    #templateModal { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); display:flex; justify-content:center; align-items:center; }
+    .modal-content { background:#1a1f2e; padding:20px; border-radius:12px; text-align:center; }
+    .modal-content h2 { margin-bottom:15px; }
+    .template-btn { margin:10px; padding:12px 20px; border:none; border-radius:8px; background:#00bcd4; color:#fff; cursor:pointer; }
+
+    @media(max-width:768px){
+      #container { flex-direction:column; }
+      #preview { min-height:60vh; }
+      #resumePaper { width:100%; padding:20px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Template Chooser -->
+<div id="templateModal">
+  <div class="modal-content">
+    <h2>Choose Your Resume Type</h2>
+    <button class="template-btn" onclick="chooseTemplate('student')">Student</button>
+    <button class="template-btn" onclick="chooseTemplate('professional')">Professional</button>
+    <button class="template-btn" onclick="chooseTemplate('teacher')">Teacher</button>
+    <button class="template-btn" onclick="chooseTemplate('researcher')">Researcher</button>
+    <button class="template-btn" onclick="chooseTemplate('phd')">PhD</button>
+  </div>
+</div>
+
+<div id="container">
+  <!-- Left Panel -->
+  <div id="editor">
+    <h2>Resume Builder</h2>
+    <p>Edit, Add, Remove sections easily.</p>
+    <div id="cardsArea"></div>
+    <h3>Cover Letter (optional)</h3>
+    <textarea id="coverLetter" placeholder="Write your cover letter here..."></textarea>
+  </div>
+
+  <!-- Right Panel -->
+  <div id="preview">
+    <div id="resumePaper">
+      <h1 id="previewName">Your Name</h1>
+      <div id="previewSections"></div>
+      <div id="previewCover"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Floating Add Button -->
+<button id="addSectionBtn" onclick="showAddOptions()">+</button>
+
+<!-- Sticky Bottom Bar -->
+<div id="bottomBar">
+  <div style="color:#fff">ATS Score:</div>
+  <div class="ats-bar"><div class="ats-fill" id="atsFill"></div></div>
+  <div class="bar-actions">
+    <button onclick="exportResume()">📄 Export</button>
+    <button onclick="shareResume()">🔗 Share</button>
+  </div>
+</div>
+
+<script>
+  // Template chooser
+  function chooseTemplate(type){
+    document.getElementById("templateModal").style.display="none";
+    if(type==="student"){ addCard("Education"); addCard("Skills"); }
+    if(type==="professional"){ addCard("Experience"); addCard("Skills"); }
+    if(type==="teacher"){ addCard("Education"); addCard("Publications"); }
+    if(type==="researcher"){ addCard("Projects"); addCard("Publications"); }
+    if(type==="phd"){ addCard("Research"); addCard("Publications"); addCard("Certificates"); }
+    updatePreview();
+  }
+
+  // Add Card
+  function addCard(type){
+    const card=document.createElement("div");
+    card.className="resume-card";
+    card.contentEditable=true;
+    card.innerHTML=`<span class="remove-card" onclick="this.parentElement.remove();updatePreview()">✖</span>
+      <h3>${type}</h3><p>Edit your ${type.toLowerCase()}...</p>`;
+    document.getElementById("cardsArea").appendChild(card);
+    updatePreview();
+  }
+
+  // Floating add options
+  function showAddOptions(){
+    let type=prompt("Enter section: Name, Skills, Experience, Education, Projects, Research, Publications, Certificates");
+    if(type) addCard(type);
+  }
+
+  // Update Preview
+  function updatePreview(){
+    document.getElementById("previewSections").innerHTML=document.getElementById("cardsArea").innerHTML;
+    document.getElementById("previewCover").innerHTML="<h3>Cover Letter</h3><p>"+document.getElementById("coverLetter").value+"</p>";
+    updateATS();
+  }
+  document.getElementById("cardsArea").addEventListener("input",updatePreview);
+  document.getElementById("coverLetter").addEventListener("input",updatePreview);
+
+  // Dummy ATS Score
+  function updateATS(){
+    let count=document.querySelectorAll(".resume-card").length;
+    let score=Math.min(100,count*15);
+    document.getElementById("atsFill").style.width=score+"%";
+  }
+
+  // Export (dummy alert for now)
+  function exportResume(){ alert("Export to PDF/PNG coming soon!"); }
+
+  // Share (dummy alert for now)
+  function shareResume(){ alert("Share to LinkedIn/WhatsApp coming soon!"); }
+</script>
+</body>
+</html>

@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Impactful Resume Builder — Card Canvas + ATS</title>
+
+  <!-- Tailwind (for quick styling) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Three.js (background) -->
+  <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+
+  <!-- Anime.js (animations) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+
+  <!-- html2pdf (export) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.3/html2pdf.bundle.min.js"></script>
+
+  <style>
+    /* ========== BASIC ========== */
+    html,body{height:100%;margin:0;background:#071026;color:#e6eef8;font-family:Inter,system-ui;overflow:hidden}
+    .app {position:relative;min-height:100vh;display:grid;grid-template-columns:420px 1fr;gap:20px;padding:20px;align-items:start}
+    /* glass */
+    .glass{background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02));backdrop-filter: blur(8px);border:1px solid rgba(255,255,255,0.05);border-radius:12px;padding:14px}
+    /* canvas overlay */
+    #threeBg{position:fixed;inset:0;z-index:-2}
+    #cardCanvas{position:relative;width:100%;height:68vh;border-radius:12px;overflow:hidden;background:linear-gradient(180deg,#061226,#071833);box-shadow:0 20px 50px rgba(0,0,0,0.6)}
+    /* card style */
+    .card{position:absolute;min-width:220px;max-width:300px;padding:12px;border-radius:10px;background:linear-gradient(180deg,#ffffff, #f7fbff);color:#061226;box-shadow:0 10px 30px rgba(2,6,23,0.6);cursor:grab;border:1px solid rgba(2,6,23,0.06)}
+    .card .title{font-weight:700;margin-bottom:6px}
+    .card .small{font-size:12px;color:#475569}
+    /* big preview */
+    #bigPreview{height:68vh;padding:18px;overflow:auto}
+    #bigCard{width:min(760px,96%);margin:0 auto;background:#fff;color:#0b1220;padding:22px;border-radius:12px;box-shadow:0 20px 60px rgba(2,6,23,.5)}
+    /* controls */
+    .controls .btn{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,0.02);cursor:pointer}
+    .interest .btn {margin-right:8px}
+    /* cover editor */
+    #cover {width:100%;min-height:120px;padding:10px;border-radius:8px;background:#071833;color:#e6eef8;border:1px solid rgba(255,255,255,0.03)}
+    /* ATS badge */
+    .badge {display:inline-block;padding:6px 10px;border-radius:999px;background:#0ea5a4;color:#032; font-weight:700}
+    /* small screens */
+    @media (max-width:900px){.app{grid-template-columns:1fr;}.leftCol{order:2}.rightCol{order:1}#cardCanvas{height:44vh}#bigPreview{height:44vh}}
+  </style>
+</head>
+<body>
+
+  <!-- ========== Three.js Background (replace your old one) ========== -->
+  <canvas id="threeBg"></canvas>
+
+  <!-- ========== Main App Grid ========== -->
+  <div class="app">
+
+    <!-- ===== LEFT: Builder Controls & Canvas ===== -->
+    <div class="leftCol glass">
+      <h2 class="text-lg font-semibold mb-2">Resume Card Canvas</h2>
+      <p class="text-sm text-slate-300 mb-4">Drag cards on the canvas. Click a card to preview large. Cover letter & ATS score included.</p>
+
+      <!-- Role suggestions + keyword mapping -->
+      <label class="text-xs text-slate-300">Choose Role / Branch</label>
+      <select id="roleSelect" class="w-full mt-2 p-2 rounded-md bg-slate-900/40 border border-slate-700 text-slate-100">
+        <option value="student">Student (BCA / BTech)</option>
+        <option value="professional">Professional (Software Engineer)</option>
+        <option value="teacher">Teacher / Lecturer</option>
+        <option value="researcher">Researcher / R&D</option>
+        <option value="phd">PhD Scholar</option>
+      </select>
+
+      <div class="mt-4 flex gap-2 controls">
+        <button class="btn" id="addNameBtn">+ Name Card</button>
+        <button class="btn" id="addSkillBtn">+ Skills</button>
+        <button class="btn" id="addExpBtn">+ Experience</button>
+        <button class="btn" id="addEduBtn">+ Education</button>
+      </div>
+
+      <!-- Canvas area -->
+      <div id="cardCanvas" class="mt-4">
+        <!-- cards will be appended here -->
+      </div>
+
+      <!-- Cover letter -->
+      <div class="mt-4">
+        <label class="text-sm text-slate-300">Cover Letter (optional)</label>
+        <textarea id="cover" placeholder="Write a short cover letter to include with your resume..."></textarea>
+      </div>
+
+      <!-- Interest buttons -->
+      <div class="mt-4 interest">
+        <button class="btn" id="applyBtn">Apply</button>
+        <button class="btn" id="saveBtn">Save</button>
+        <button class="btn" id="shareBtn">Share</button>
+        <button class="btn" id="tipsBtn">Get Tips</button>
+      </div>
+
+      <!-- small helper -->
+      <div class="mt-4 text-xs text-slate-400">Tip: click any card to see live preview on the right. Cards are draggable inside canvas.</div>
+    </div>
+
+    <!-- ===== RIGHT: Big Live Preview + ATS ===== -->
+    <div class="rightCol glass" id="bigPreview">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h3 class="text-lg font-semibold">Live Preview</h3>
+          <div class="text-sm text-slate-400">Expanded card preview. ATS Score updates live.</div>
+        </div>
+        <div style="text-align:right">
+          <div>ATS Score</div>
+          <div id="atsBadge" class="badge">0%</div>
+        </div>
+      </div>
+
+      <div id="bigCard">
+        <!-- preview content -->
+        <div id="previewInner">
+          <h1 id="bigName" style="font-size:22px;margin:0">Your Name</h1>
+          <p id="bigRole" style="margin:6px 0;color:#475569">Role / Title</p>
+          <hr style="margin:12px 0;border:none;border-top:1px solid #e6eef8aa" />
+          <section id="bigSummary">
+            <h4 style="margin:0 0 6px 0;font-weight:700">Summary</h4>
+            <p id="bigSummaryText" style="margin:0;color:#334155">Short summary will appear here.</p>
+          </section>
+
+          <section id="bigSkills" style="margin-top:12px">
+            <h4 style="margin:0 0 6px 0;font-weight:700">Skills</h4>
+            <div id="bigSkillsWrap" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+          </section>
+
+          <section id="bigExp" style="margin-top:12px">
+            <h4 style="margin:0 0 6px 0;font-weight:700">Experience</h4>
+            <div id="bigExpWrap"></div>
+          </section>
+
+          <section id="bigEdu" style="margin-top:12px">
+            <h4 style="margin:0 0 6px 0;font-weight:700">Education</h4>
+            <div id="bigEduWrap"></div>
+          </section>
+
+          <section id="bigCover" style="margin-top:12px">
+            <h4 style="margin:0 0 6px 0;font-weight:700">Cover Letter</h4>
+            <div id="bigCoverText" style="color:#334155">No cover letter yet.</div>
+          </section>
+
+          <div class="mt-6" style="display:flex;gap:12px">
+            <button class="btn" id="exportPdfBig">Export PDF</button>
+            <button class="btn" id="exportPngBig">Export PNG</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ========== SCRIPTS: Three.js background, Card logic, ATS, Exports ========== -->
+  <script>
+  /*************************
+   * SECTION: Three.js background
+   * Add this where you had your previous three.js code.
+   *************************/
+  (function threeBg(){
+    const canvas = document.getElementById('threeBg');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 1000);
+    camera.position.z = 80;
+
+    // Particles
+    const count = 800;
+    const positions = new Float32Array(count*3);
+    for(let i=0;i<count;i++){
+      positions[i*3]= (Math.random()-0.5)*200;
+      positions[i*3+1]= (Math.random()-0.5)*120;
+      positions[i*3+2]= (Math.random()-0.5)*200;
+    }
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.BufferAttribute(positions,3));
+    const mat = new THREE.PointsMaterial({ size:1.6, color:0x38bdf8, transparent:true, opacity:0.9 });
+    const pts = new THREE.Points(geom, mat);
+    scene.add(pts);
+
+    // Orbiting mesh
+    const geo2 = new THREE.TorusKnotGeometry(18,4,120,16);
+    const mat2 = new THREE.MeshStandardMaterial({ color:0x7c3aed, metalness:0.6, roughness:0.2, emissive:0x0a1220 });
+    const knot = new THREE.Mesh(geo2, mat2);
+    knot.position.set(0,-8,0);
+    knot.rotation.x = 0.6;
+    scene.add(knot);
+
+    // light
+    const l1 = new THREE.PointLight(0xffffff, 0.9);
+    l1.position.set(50,50,60);
+    scene.add(l1);
+    const l2 = new THREE.AmbientLight(0x1e293b, 0.6);
+    scene.add(l2);
+
+    function onResize(){
+      renderer.setSize(innerWidth, innerHeight);
+      camera.aspect = innerWidth/innerHeight;
+      camera.updateProjectionMatrix();
+    }
+    window.addEventListener('resize', onResize);
+    onResize();
+    let t=0;
+    (function anim(){ requestAnimationFrame(anim);
+      t += 0.01;
+      pts.rotation.y = t*0.02;
+      knot.rotation.y += 0.004;
+      knot.rotation.x += 0.001;
+      renderer.render(scene,camera);
+    })();
+  })();
+
+  /*************************
+   * SECTION: Card Canvas + UI logic
+   * Add this script block at bottom (replace or add to your main JS file).
+   *************************/
+  (function appLogic(){
+    // role -> keywords for ATS
+    const roleKeywords = {
+      student: ['project','internship','cgpa','college','semester','java','python','c++','html','css','javascript'],
+      professional: ['developed','deployed','api','aws','docker','performance','optimization','react','node','php','sql'],
+      teacher: ['curriculum','lecture','syllabus','mentored','naac','assessment',' pedagogy','classroom','education'],
+      researcher: ['paper','publication','experiment','dataset','analysis','methodology','conference','journal','ndvi','satellite'],
+      phd: ['thesis','dissertation','peer-reviewed','publication','research','methodology','supervisor','grant']
+    };
+
+    // state
+    const state = {
+      cards: [], selectedId: null, cover: '', role: 'student'
+    };
+
+    // helpers
+    const $ = s => document.querySelector(s);
+    const canvas = $('#cardCanvas');
+
+    // basic card factory - data structure
+    function createCard(type, payload={}){
+      const id = 'c_'+Math.random().toString(36).slice(2,9);
+      const el = document.createElement('div');
+      el.className = 'card';
+      el.dataset.id = id;
+      // default position
+      el.style.left = (20 + Math.random()*180)+'px';
+      el.style.top = (20 + Math.random()*120)+'px';
+      // inner content per type
+      let html = `<div class="title">${type.toUpperCase()}</div>`;
+      if(type === 'name'){
+        html += `<div class="small">Full Name</div><div contenteditable="true" class="editable nameField">${payload.name||'Your Name'}</div>`;
+      } else if(type === 'skills'){
+        html += `<div class="small">Skills (comma separated)</div><div contenteditable="true" class="editable skillsField">${(payload.skills||['HTML','CSS','JS']).join(', ')}</div>`;
+      } else if(type === 'experience'){
+        html += `<div class="small">Exp: Role @ Company (comma sep bullets)</div><div contenteditable="true" class="editable expField">${payload.exp||'Frontend Developer @ MindMatrix — Built tools, Improved perf'}</div>`;
+      } else if(type === 'education'){
+        html += `<div class="small">Education</div><div contenteditable="true" class="editable eduField">${payload.edu||'BCA — Shivaji University — 8.85 CGPA'}</div>`;
+      } else if(type === 'custom'){
+        html += `<div class="small">Custom</div><div contenteditable="true" class="editable customField">${payload.text||'Custom note'}</div>`;
+      }
+      el.innerHTML = html;
+      canvas.appendChild(el);
+
+      // drag handlers (pointer events)
+      let isDown=false, startX, startY, elX, elY;
+      el.addEventListener('pointerdown',(ev)=>{
+        isDown=true; el.setPointerCapture(ev.pointerId);
+        startX = ev.clientX; startY = ev.clientY;
+        elX = parseFloat(el.style.left); elY = parseFloat(el.style.top);
+        el.style.cursor='grabbing';
+      });
+      window.addEventListener('pointermove',(ev)=>{
+        if(!isDown) return;
+        const dx = ev.clientX - startX;
+        const dy = ev.clientY - startY;
+        el.style.left = (elX + dx)+'px';
+        el.style.top  = (elY + dy)+'px';
+      });
+      el.addEventListener('pointerup',(ev)=>{ isDown=false; el.releasePointerCapture(ev.pointerId); el.style.cursor='grab'; });
+
+      // click to select + preview
+      el.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        selectCard(id);
+      });
+
+      // contenteditable input -> update preview and ATS
+      el.addEventListener('input', ()=>{ updateStateFromCanvas(); renderPreview(); computeATS(); });
+
+      // push to state
+      state.cards.push({ id, type, el });
+      // animate in
+      anime({ targets: el, scale:[0.9,1], opacity:[0,1], duration:420, easing:'easeOutBack' });
+
+      return id;
+    }
+
+    // add initial cards
+    createCard('name',{name:'G-One'});
+    createCard('skills',{skills:['HTML','JS','PHP']});
+    createCard('experience',{exp:'Web Developer @ MindMatrix — Built 10+ AI tools, Reduced load by 45%'});
+    createCard('education',{edu:'BCA — Shivaji University — 8.85 CGPA'});
+
+    // select card -> highlight + expand preview
+    function selectCard(id){
+      state.selectedId = id;
+      // visual highlight
+      document.querySelectorAll('.card').forEach(c=> c.style.boxShadow='0 10px 30px rgba(2,6,23,0.6)');
+      const sel = document.querySelector(`.card[data-id="${id}"]`);
+      if(sel) sel.style.boxShadow = '0 18px 50px rgba(2,6,23,0.9)';
+      renderPreview();
+    }
+
+    // when clicking outside canvas, deselect
+    canvas.addEventListener('click', ()=>{ state.selectedId = null; document.querySelectorAll('.card').forEach(c=> c.style.boxShadow='0 10px 30px rgba(2,6,23,0.6)'); renderPreview(); });
+
+    // read values from canvas into a simple resume representation
+    function updateStateFromCanvas(){
+      const data = { name:'', skills:[], experience:[], education:[], custom:[] };
+      document.querySelectorAll('.card').forEach(card=>{
+        if(card.innerText.trim()==='') return;
+        if(card.querySelector('.nameField')) data.name = card.querySelector('.nameField').innerText.trim();
+        if(card.querySelector('.skillsField')) {
+          const s = card.querySelector('.skillsField').innerText.split(',').map(x=>x.trim()).filter(Boolean);
+          data.skills = data.skills.concat(s);
+        }
+        if(card.querySelector('.expField')) data.experience.push(card.querySelector('.expField').innerText.trim());
+        if(card.querySelector('.eduField')) data.education.push(card.querySelector('.eduField').innerText.trim());
+        if(card.querySelector('.customField')) data.custom.push(card.querySelector('.customField').innerText.trim());
+      });
+      state.resume = data;
+      state.cover = $('#cover').value;
+    }
+
+    // render big preview from state.resume (expand selected card if any)
+    function renderPreview(){
+      updateStateFromCanvas();
+      const r = state.resume || {};
+      $('#bigName').innerText = r.name||'Your Name';
+      $('#bigRole').innerText = ( $('#roleSelect').value || 'student' ).toUpperCase();
+      $('#bigSummaryText').innerText = r.experience && r.experience.length ? r.experience[0] : 'Short summary or headline about your impact and goals.';
+      // skills
+      const skillsWrap = $('#bigSkillsWrap'); skillsWrap.innerHTML='';
+      (r.skills||[]).slice(0,30).forEach(s=>{
+        const sp = document.createElement('span'); sp.style.padding='6px 8px'; sp.style.background='#eef2ff'; sp.style.color='#312e81'; sp.style.borderRadius='999px'; sp.style.fontWeight=700; sp.innerText=s;
+        skillsWrap.appendChild(sp);
+      });
+      // experience
+      const expWrap = $('#bigExpWrap'); expWrap.innerHTML='';
+      (r.experience||[]).forEach(e=>{
+        const div = document.createElement('div'); div.style.marginBottom='8px'; div.innerHTML = `<div style="font-weight:700">${e.split('—')[0]||e}</div><div style="color:#475569">${e}</div>`;
+        expWrap.appendChild(div);
+      });
+      // education
+      const eduWrap = $('#bigEduWrap'); eduWrap.innerHTML='';
+      (r.education||[]).forEach(ed=>{
+        const div = document.createElement('div'); div.innerHTML = `<div style="font-weight:700">${ed.split('—')[0]||ed}</div><div style="color:#475569">${ed}</div>`;
+        eduWrap.appendChild(div);
+      });
+      // cover
+      $('#bigCoverText').innerText = $('#cover').value || 'No cover letter yet.';
+    }
+
+    // ATS computation: simple heuristic
+    function computeATS(){
+      updateStateFromCanvas();
+      const r = state.resume || {};
+      const baseFields = ['name','skills','experience','education'];
+      let score = 0;
+      // 40% - completeness
+      let filled = 0;
+      if(r.name) filled++;
+      if((r.skills||[]).length) filled++;
+      if((r.experience||[]).length) filled++;
+      if((r.education||[]).length) filled++;
+      const completeness = (filled / baseFields.length) * 40;
+      score += completeness;
+      // 50% - keyword match with role
+      const role = $('#roleSelect').value;
+      const keywords = roleKeywords[role] || [];
+      const text = (JSON.stringify(r)).toLowerCase();
+      let matches = 0;
+      keywords.forEach(k=>{ if(k && text.includes(k)) matches++; });
+      const kwScore = Math.min(50, (matches / Math.max(1, keywords.length)) * 50);
+      score += kwScore;
+      // 10% - cover letter presence
+      score += ($('#cover').value.trim() ? 10 : 0);
+
+      const final = Math.round(Math.min(100, score));
+      $('#atsBadge').innerText = final + '%';
+      // color tweak based on score
+      const badge = $('#atsBadge');
+      if(final>80){ badge.style.background='#10b981'; badge.style.color='#042'; }
+      else if(final>60){ badge.style.background='#f59e0b'; badge.style.color='#2b1700'; }
+      else { badge.style.background='#f43f5e'; badge.style.color='#2b0505'; }
+      return final;
+    }
+
+    // initial compute
+    renderPreview(); computeATS();
+
+    // EXPORTS: PDF/PNG for bigCard
+    $('#exportPdfBig').addEventListener('click',()=>{
+      const opt = { margin: 10, filename: (state.resume?.name||'resume').replace(/\s+/g,'_') + '.pdf', html2canvas:{scale:2}, jsPDF:{unit:'mm',format:'a4',orientation:'portrait'} };
+      html2pdf().set(opt).from($('#bigCard')).save();
+    });
+    $('#exportPngBig').addEventListener('click', async ()=>{
+      const canvasEl = await html2canvas($('#bigCard'), { scale:2, backgroundColor:'#ffffff' });
+      const link = document.createElement('a');
+      link.href = canvasEl.toDataURL('image/png'); link.download = (state.resume?.name||'resume') + '.png'; link.click();
+    });
+
+    // controls: add card buttons
+    $('#addNameBtn').addEventListener('click', ()=>{ createCard('name',{name:'Your Name'}); });
+    $('#addSkillBtn').addEventListener('click', ()=>{ createCard('skills',{skills:['HTML','CSS']}); });
+    $('#addExpBtn').addEventListener('click', ()=>{ createCard('experience',{exp:'Role — Responsibility bullets'}); });
+    $('#addEduBtn').addEventListener('click', ()=>{ createCard('education',{edu:'Degree — Institute — Year'}); });
+
+    // role change -> recompute suggestions / ATS
+    $('#roleSelect').addEventListener('change', ()=>{ computeATS(); /* optionally suggest prefilled cards based on role */ });
+
+    // interest buttons (simple behaviours)
+    $('#saveBtn').addEventListener('click', ()=>{
+      // save to localStorage
+      updateStateFromCanvas();
+      const payload = { resume: state.resume, cover: $('#cover').value, role: $('#roleSelect').value };
+      localStorage.setItem('resume_saved', JSON.stringify(payload));
+      anime({ targets: '#saveBtn', scale:[1,1.08,1], easing:'easeOutBack' });
+      alert('Saved locally. You can export PDF or share JSON later.');
+    });
+    $('#shareBtn').addEventListener('click', ()=>{
+      updateStateFromCanvas();
+      const blob = new Blob([JSON.stringify({ resume: state.resume, cover: $('#cover').value })], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'resume_data.json'; a.click();
+      URL.revokeObjectURL(url);
+      anime({ targets: '#shareBtn', rotate:[0,12,-6,0], duration:700 });
+    });
+    $('#tipsBtn').addEventListener('click', ()=>{
+      // quick tips popup (simple)
+      const role = $('#roleSelect').value;
+      let tips = 'General tip: Use action verbs, quantify achievements, keep skills relevant.';
+      if(role==='student') tips = 'For students: Highlight projects, internships, CGPA, tools used, and internship links (GitHub).';
+      if(role==='professional') tips = 'For professionals: Start with impact bullets (numbers), tech stack, links to deployments.';
+      if(role==='teacher') tips = 'Teachers: Mention courses taught, NAAC, syllabus development, student success stories.';
+      if(role==='researcher' || role==='phd') tips = 'Research: List publications, conferences, datasets, methods, supervisor and grants.';
+      alert(tips);
+    });
+    $('#applyBtn').addEventListener('click', ()=>{
+      computeATS();
+      if(computeATS() < 50) { alert('ATS score is low. Try adding role keywords and more experience/skills.'); }
+      else { alert('Great! Your ATS score looks decent. Use Export PDF and Apply on job portal.'); }
+    });
+
+    // cover update -> live
+    $('#cover').addEventListener('input', ()=>{ renderPreview(); computeATS(); });
+
+    // small autosave on unload
+    window.addEventListener('beforeunload', ()=>{ updateStateFromCanvas(); localStorage.setItem('resume_autosave', JSON.stringify({ resume: state.resume, cover: $('#cover').value })); });
+
+    // — END appLogic
+  })();
+  </script>
+
+</body>
+</html>
